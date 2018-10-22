@@ -47,8 +47,16 @@ type PtyCallback func(ctx Context, pty Pty) bool
 // the net.Conn that will be used as the underlying connection.
 type ConnCallback func(conn net.Conn) net.Conn
 
-// LocalPortForwardingCallback is a hook for allowing port forwarding
-type LocalPortForwardingCallback func(ctx Context, destinationHost string, destinationPort uint32) bool
+// PortForwardDestination holds Host and Port of the port forward destination.
+type PortForwardDestination struct {
+	Host string
+	Port int
+}
+
+// LocalPortForwardingCallback is a hook for allowing port forwarding.
+// PortForwardDestination allows the callback to overwrite the destination of the port forwarding.
+// Its the callback's responsibility to set a valid destination, there are no further validations.
+type LocalPortForwardingCallback func(Context, *PortForwardDestination) bool
 
 // Window represents the size of a PTY window.
 type Window struct {

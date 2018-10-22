@@ -12,8 +12,9 @@ import (
 )
 
 var sampleServerResponse = []byte("Hello world")
+var altSampleServerResponse = []byte("Better world")
 
-func sampleSocketServer() net.Listener {
+func sampleSocketServer(reply []byte) net.Listener {
 	l := newLocalListener()
 
 	go func() {
@@ -21,7 +22,7 @@ func sampleSocketServer() net.Listener {
 		if err != nil {
 			return
 		}
-		conn.Write(sampleServerResponse)
+		conn.Write(reply)
 		conn.Close()
 	}()
 
@@ -29,15 +30,43 @@ func sampleSocketServer() net.Listener {
 }
 
 func newTestSessionWithForwarding(t *testing.T, forwardingEnabled bool) (net.Listener, *gossh.Client, func()) {
-	l := sampleSocketServer()
+	l := sampleSocketServer(sampleServerResponse)
 
 	_, client, cleanup := newTestSession(t, &Server{
 		Handler: func(s Session) {},
-		LocalPortForwardingCallback: func(ctx Context, destinationHost string, destinationPort uint32) bool {
-			addr := net.JoinHostPort(destinationHost, strconv.FormatInt(int64(destinationPort), 10))
+		LocalPortForwardingCallback: func(ctx Context, pdf *PortForwardDestination) bool {
+			addr := net.JoinHostPort(pdf.Host, strconv.Itoa(pdf.Port))
 			if addr != l.Addr().String() {
 				panic("unexpected destinationHost: " + addr)
 			}
+			return forwardingEnabled
+		},
+	}, nil)
+
+	return l, client, func() {
+		cleanup()
+		l.Close()
+	}
+}
+
+func newTestSessionWithForwardingAndOverwriteDestination(t *testing.T, forwardingEnabled bool) (net.Listener, *gossh.Client, func()) {
+	l := sampleSocketServer(sampleServerResponse)
+	alternativeDestination := sampleSocketServer(altSampleServerResponse)
+
+	_, client, cleanup := newTestSession(t, &Server{
+		Handler: func(s Session) {},
+		LocalPortForwardingCallback: func(ctx Context, pdf *PortForwardDestination) bool {
+			addr := net.JoinHostPort(pdf.Host, strconv.Itoa(pdf.Port))
+			if addr != l.Addr().String() {
+				panic("unexpected destinationHost: " + addr)
+			}
+			tmp := strings.Split(alternativeDestination.Addr().String(), ":")
+			pdf.Host = tmp[0]
+			p, err := strconv.Atoi(tmp[1])
+			if err != nil {
+				t.Fatalf("cannot convert port %s", tmp[1])
+			}
+			pdf.Port = p
 			return forwardingEnabled
 		},
 	}, nil)
@@ -63,6 +92,25 @@ func TestLocalPortForwardingWorks(t *testing.T) {
 		t.Fatal(err)
 	}
 	if !bytes.Equal(result, sampleServerResponse) {
+		t.Fatalf("result = %#v; want %#v", result, sampleServerResponse)
+	}
+}
+
+func TestLocalPortForwardingWithOverwriteWorks(t *testing.T) {
+	t.Parallel()
+
+	l, client, cleanup := newTestSessionWithForwardingAndOverwriteDestination(t, true)
+	defer cleanup()
+
+	conn, err := client.Dial("tcp", l.Addr().String())
+	if err != nil {
+		t.Fatalf("Error connecting to %v: %v", l.Addr().String(), err)
+	}
+	result, err := ioutil.ReadAll(conn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(result, altSampleServerResponse) {
 		t.Fatalf("result = %#v; want %#v", result, sampleServerResponse)
 	}
 }
