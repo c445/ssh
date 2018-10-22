@@ -24,11 +24,12 @@ type Server struct {
 	HostSigners []Signer // private keys for the host key, must have at least one
 	Version     string   // server version to be sent before the initial handshake
 
-	PasswordHandler             PasswordHandler             // password authentication handler
-	PublicKeyHandler            PublicKeyHandler            // public key authentication handler
-	PtyCallback                 PtyCallback                 // callback for allowing PTY sessions, allows all if nil
-	ConnCallback                ConnCallback                // optional callback for wrapping net.Conn before handling
-	LocalPortForwardingCallback LocalPortForwardingCallback // callback for allowing local port forwarding, denies all if nil
+	PasswordHandler                    PasswordHandler                    // password authentication handler
+	PublicKeyHandler                   PublicKeyHandler                   // public key authentication handler
+	PtyCallback                        PtyCallback                        // callback for allowing PTY sessions, allows all if nil
+	ConnCallback                       ConnCallback                       // optional callback for wrapping net.Conn before handling
+	LocalPortForwardingCallback        LocalPortForwardingCallback        // callback for allowing local port forwarding, denies all if nil
+	LocalPortForwardingRewriteCallback LocalPortForwardingRewriteCallback // callback for allowing to override direct tcp destination
 
 	IdleTimeout time.Duration // connection timeout when no activity, none if empty
 	MaxTimeout  time.Duration // absolute connection timeout, none if empty
@@ -42,6 +43,9 @@ type Server struct {
 	connWg     sync.WaitGroup
 	doneChan   chan struct{}
 }
+
+// LocalPortForwardingRewriteCallback allows to override the final destination host and port for a direct tcpip connection.
+type LocalPortForwardingRewriteCallback func(ctx Context, destinationHost string, destintationPort uint32) (destinationHost string, destinationPort uint32)
 
 // internal for now
 type channelHandler func(srv *Server, conn *gossh.ServerConn, newChan gossh.NewChannel, ctx Context)

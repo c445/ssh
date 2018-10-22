@@ -24,13 +24,17 @@ func directTcpipHandler(srv *Server, conn *gossh.ServerConn, newChan gossh.NewCh
 		return
 	}
 
+	if srv.LocalPortForwardingRewriteCallback != nil {
+		d.DestinationHost, d.DestinationPort = srv.LocalPortForwardingRewriteCallback(ctx, d.DestinationHost, d.DestinationPort)
+	}
+
 	if srv.LocalPortForwardingCallback == nil || !srv.LocalPortForwardingCallback(ctx, d.DestinationHost, d.DestinationPort) {
 		newChan.Reject(gossh.Prohibited, "port forwarding is disabled")
 		return
 	}
 
 	dest := net.JoinHostPort(d.DestinationHost, strconv.FormatInt(int64(d.DestinationPort), 10))
-	
+
 	var dialer net.Dialer
 	dconn, err := dialer.DialContext(ctx, "tcp", dest)
 	if err != nil {
