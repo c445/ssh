@@ -3,7 +3,6 @@ package ssh
 import (
 	"io"
 	"net"
-	"strconv"
 
 	gossh "golang.org/x/crypto/ssh"
 )
@@ -24,20 +23,18 @@ func directTcpipHandler(srv *Server, conn *gossh.ServerConn, newChan gossh.NewCh
 		return
 	}
 
-	pdf := &PortForwardDestination{
+	pfd := &PortForwardDestination{
 		d.DestinationHost,
 		int(d.DestinationPort),
 	}
 
-	if srv.LocalPortForwardingCallback == nil || !srv.LocalPortForwardingCallback(ctx, pdf) {
+	if srv.LocalPortForwardingCallback == nil || !srv.LocalPortForwardingCallback(ctx, pfd) {
 		newChan.Reject(gossh.Prohibited, "port forwarding is disabled")
 		return
 	}
 
-	dest := net.JoinHostPort(pdf.Host, strconv.Itoa(pdf.Port))
-
 	var dialer net.Dialer
-	dconn, err := dialer.DialContext(ctx, "tcp", dest)
+	dconn, err := dialer.DialContext(ctx, "tcp", pfd.String())
 	if err != nil {
 		newChan.Reject(gossh.ConnectionFailed, err.Error())
 		return

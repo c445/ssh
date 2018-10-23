@@ -11,8 +11,10 @@ import (
 	gossh "golang.org/x/crypto/ssh"
 )
 
-var sampleServerResponse = []byte("Hello world")
-var altSampleServerResponse = []byte("Better world")
+var (
+	sampleServerResponse    = []byte("Hello world")
+	altSampleServerResponse = []byte("Better world")
+)
 
 func sampleSocketServer(reply []byte) net.Listener {
 	l := newLocalListener()
@@ -34,10 +36,10 @@ func newTestSessionWithForwarding(t *testing.T, forwardingEnabled bool) (net.Lis
 
 	_, client, cleanup := newTestSession(t, &Server{
 		Handler: func(s Session) {},
-		LocalPortForwardingCallback: func(ctx Context, pdf *PortForwardDestination) bool {
-			addr := net.JoinHostPort(pdf.Host, strconv.Itoa(pdf.Port))
+		LocalPortForwardingCallback: func(ctx Context, pfd *PortForwardDestination) bool {
+			addr := pfd.String()
 			if addr != l.Addr().String() {
-				panic("unexpected destinationHost: " + addr)
+				t.Fatal("unexpected destinationHost: " + addr)
 			}
 			return forwardingEnabled
 		},
@@ -55,18 +57,20 @@ func newTestSessionWithForwardingAndOverwriteDestination(t *testing.T, forwardin
 
 	_, client, cleanup := newTestSession(t, &Server{
 		Handler: func(s Session) {},
-		LocalPortForwardingCallback: func(ctx Context, pdf *PortForwardDestination) bool {
-			addr := net.JoinHostPort(pdf.Host, strconv.Itoa(pdf.Port))
+		LocalPortForwardingCallback: func(ctx Context, pfd *PortForwardDestination) bool {
+			addr := pfd.String()
 			if addr != l.Addr().String() {
-				panic("unexpected destinationHost: " + addr)
+				t.Fatal("unexpected destinationHost: " + addr)
 			}
-			tmp := strings.Split(alternativeDestination.Addr().String(), ":")
-			pdf.Host = tmp[0]
-			p, err := strconv.Atoi(tmp[1])
+			host, port, err := net.SplitHostPort(alternativeDestination.Addr().String())
 			if err != nil {
-				t.Fatalf("cannot convert port %s", tmp[1])
+				t.Fatalf("cannot split addr(%s): %v", alternativeDestination.Addr(), err)
 			}
-			pdf.Port = p
+			pfd.Host = host
+			pfd.Port, err = strconv.Atoi(port)
+			if err != nil {
+				t.Fatalf("cannot convert port(%s): %v", port, err)
+			}
 			return forwardingEnabled
 		},
 	}, nil)

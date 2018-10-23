@@ -3,6 +3,7 @@ package ssh
 import (
 	"crypto/subtle"
 	"net"
+	"strconv"
 )
 
 type Signal string
@@ -51,6 +52,12 @@ type ConnCallback func(conn net.Conn) net.Conn
 type PortForwardDestination struct {
 	Host string
 	Port int
+}
+
+// String returns a string representation of PortForwardDestination that can be used
+// for dial.
+func (pfd *PortForwardDestination) String() string {
+	return net.JoinHostPort(pfd.Host, strconv.Itoa(pfd.Port))
 }
 
 // LocalPortForwardingCallback is a hook for allowing port forwarding.
